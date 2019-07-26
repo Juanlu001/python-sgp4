@@ -5,10 +5,11 @@ This is a minimally-edited copy of "sgp4io.cpp".
 """
 import re
 from datetime import datetime
-from math import pi, pow
+from math import pi, pow, log10
 from sgp4.ext import days2mdhms, jday
 from sgp4.model import Satellite
-from sgp4.propagation import sgp4init
+from sgp4.propagation import sgp4init, unkozai
+import scipy.optimize
 
 INT_RE = re.compile(r'[+-]?\d*')
 FLOAT_RE = re.compile(r'[+-]?\d*(\.\d*)?')
@@ -261,3 +262,52 @@ def fix_checksum(line):
 def compute_checksum(line):
     """Compute the TLE checksum for the given line."""
     return sum((int(c) if c.isdigit() else c == '-') for c in line[0:68]) % 10
+
+
+def rv2twoline(satrec, whichconst, intldesg, elnum, revnum):
+    deg2rad = pi / 180.0
+    xpdotp = 1440.0 / (2.0 * pi)
+    line1_out_list = list(" " * 69)
+    line1_out_list[0] = str(1)
+    line1_out_list[2:7] = str(satrec.satnum)
+    line1_out_list[7] = "U"  # Harcoded, not available in satrec object
+    line1_out_list[9:15] = intldesg
+    line1_out_list[18:20] = str(satrec.epochyr)[-2:]
+    line1_out_list[20:32] = str(satrec.epochdays)
+    line1_out_list[34:43] = "{:.8f}".format(satrec.ndot * (xpdotp * 1440.0))[1:]
+    if satrec.nddot == 0.0:
+        line1_out_list[45:52] = "00000-0"
+    else:
+        nddot = satrec.nddot * (xpdotp * 1440.0 * 1440)
+        nexp = int(log10(nddot))
+        ndot_fraction = pow(10.0, log10(nddot) - nexp)
+        line1_out_list[45:50] = "{:1.5f}".format(ndot_fraction)[2:]
+        line1_out_list[50:52] = str(nexp) if nexp < 0 else "+" + str(nexp)
+    ibexp = int(log10(satrec.bstar))
+    bstar_frac = pow(10.0, log10(satrec.bstar) - ibexp)
+    line1_out_list[54:59] = "{:1.5f}".format(bstar_frac)[2:]
+    line1_out_list[59:61] = str(ibexp)
+    line1_out_list[62] = "0"  # Harcoded, value that is no longer used in TLE
+    line1_out_list[64:69] = elnum
+    line1 = "".join(line1_out_list)
+
+    line2_out_list = list(" " * 69)
+    line2_out_list[0] = str(2)
+    line2_out_list[2:7] = str(satrec.satnum)
+    if int(log10(satrec.inclo / deg2rad)) == 2:
+        line2_out_list[8:16] = "{:3.4f}".format(satrec.inclo / deg2rad)
+    elif int(log10(satrec.inclo / deg2rad)) == 1:
+        line2_out_list[9:16] = "{:2.4f}".format(satrec.inclo / deg2rad)
+    else:
+        line2_out_list[10:16] = "{:1.4f}".format(satrec.inclo / deg2rad)
+    line2_out_list[17:25] = "{:3.4f}".format(satrec.nodeo / deg2rad)
+    line2_out_list[26:33] = "{:1.7f}".format(satrec.ecco)[2:]
+    line2_out_list[34:42] = "{:3.4f}".format(satrec.argpo / deg2rad)
+    line2_out_list[43:51] = "{:3.4f}".format(satrec.mo / deg2rad)
+    func = lambda no: unkozai(no, satrec.ecco, satrec.inclo, whichconst) - satrec.no
+    sol = scipy.optimize.root_scalar(func, x0=satrec.no, x1=satrec.no - 1e-4, xtol=1e-13)
+    line2_out_list[52:63] = "{:3.8f}".format(sol.root * xpdotp)
+    line2_out_list[64:69] = revnum
+    line2 = "".join(line2_out_list)
+
+    return line1, line2
