@@ -29,5 +29,4 @@ setup(name = 'sgp4',
         'Topic :: Scientific/Engineering :: Astronomy',
         ],
       packages = ['sgp4'],
-      install_requires=["scipy"],
       )
