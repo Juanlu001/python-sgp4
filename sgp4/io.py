@@ -5,7 +5,7 @@ This is a minimally-edited copy of "sgp4io.cpp".
 """
 import re
 from datetime import datetime
-from math import pi, pow
+from math import pi, pow, log10
 from sgp4.ext import days2mdhms, jday
 from sgp4.model import Satellite
 from sgp4.propagation import sgp4init
@@ -139,8 +139,8 @@ def twoline2rv(longstr1, longstr2, whichconst, afspc_mode=False):
         line[63] == ' '):
 
         _saved_satnum = satrec.satnum = int(line[2:7])
-        # classification = line[7] or 'U'
-        # intldesg = line[9:17]
+        satrec.classification = line[7] or 'U'
+        satrec.intldesg = line[9:17]
         two_digit_year = int(line[18:20])
         satrec.epochdays = float(line[20:32])
         satrec.ndot = float(line[33:43])
@@ -149,7 +149,8 @@ def twoline2rv(longstr1, longstr2, whichconst, afspc_mode=False):
         satrec.bstar = float(line[53] + '.' + line[54:59])
         ibexp = int(line[59:61])
         # numb = int(line[62])
-        # elnum = int(line[64:68])
+        satrec.elnum = int(line[64:68])
+        satrec.checksum1 = line[68]
     else:
         raise ValueError(error_message.format(1, LINE1, line))
 
@@ -176,19 +177,20 @@ def twoline2rv(longstr1, longstr2, whichconst, afspc_mode=False):
         satrec.ecco = float('0.' + line[26:33].replace(' ', '0'))
         satrec.argpo = float(line[34:42])
         satrec.mo = float(line[43:51])
-        satrec.no = float(line[52:63])
-        #revnum = line[63:68]
+        satrec.no_kozai = float(line[52:63])
+        satrec.revnum = int(line[63:68])
+        satrec.checksum2 = line[68]
     #except (AssertionError, IndexError, ValueError):
     else:
         raise ValueError(error_message.format(2, LINE2, line))
 
     #  ---- find no, ndot, nddot ----
-    satrec.no   = satrec.no / xpdotp; #   rad/min
+    satrec.no_kozai = satrec.no_kozai / xpdotp; #   rad/min
     satrec.nddot= satrec.nddot * pow(10.0, nexp);
     satrec.bstar= satrec.bstar * pow(10.0, ibexp);
 
     #  ---- convert to sgp4 units ----
-    satrec.a    = pow( satrec.no*tumin , (-2.0/3.0) );
+    satrec.a    = pow( satrec.no_kozai*tumin , (-2.0/3.0) );
     satrec.ndot = satrec.ndot  / (xpdotp*1440.0);  #   ? * minperday
     satrec.nddot= satrec.nddot / (xpdotp*1440.0*1440);
 
@@ -226,10 +228,11 @@ def twoline2rv(longstr1, longstr2, whichconst, afspc_mode=False):
 
     #  ---------------- initialize the orbit at sgp4epoch -------------------
     sgp4init(whichconst, afspc_mode, satrec.satnum, satrec.jdsatepoch-2433281.5, satrec.bstar,
-             satrec.ecco, satrec.argpo, satrec.inclo, satrec.mo, satrec.no,
+             satrec.ecco, satrec.argpo, satrec.inclo, satrec.mo, satrec.no_kozai,
              satrec.nodeo, satrec)
 
     return satrec
+
 
 def verify_checksum(*lines):
     """Verify the checksum of one or more TLE lines.
@@ -249,6 +252,7 @@ def verify_checksum(*lines):
                          ' but in fact tallies to {}:\n{}')
             raise ValueError(complaint.format(checksum, computed, line))
 
+
 def fix_checksum(line):
     """Return a new copy of the TLE `line`, with the correct checksum appended.
 
@@ -258,6 +262,72 @@ def fix_checksum(line):
     """
     return line[:68].ljust(68) + str(compute_checksum(line))
 
+
 def compute_checksum(line):
     """Compute the TLE checksum for the given line."""
     return sum((int(c) if c.isdigit() else c == '-') for c in line[0:68]) % 10
+
+
+def rv2twoline(satrec):
+    deg2rad = pi / 180.0
+    xpdotp = 1440.0 / (2.0 * pi)
+    line1_out_list = list(" " * 69)
+    line1_out_list[0] = str(1)
+    line1_out_list[2:7] = "{:05d}".format(satrec.satnum)
+    line1_out_list[7] = satrec.classification
+    line1_out_list[9:15] = satrec.intldesg
+    line1_out_list[18:20] = str(satrec.epochyr)[-2:]
+    line1_out_list[20:32] = "{:>012.8f}".format(satrec.epochdays)
+    ndot_min = satrec.ndot * (xpdotp * 1440.0)
+    if ndot_min < 0:
+        line1_out_list[33:43] = "-."+"{:=8.8f}".format(ndot_min).split(".")[-1]
+    else:
+        line1_out_list[33:43] = " ." + "{:=8.8f}".format(ndot_min).split(".")[-1]
+    if satrec.nddot == 0.0:
+        line1_out_list[45:52] = "00000-0"
+    else:
+        nddot = satrec.nddot * (xpdotp * 1440.0 * 1440)
+        nddot_module = abs(nddot)
+        nexp = int(log10(nddot_module))
+        ndot_fraction = pow(10.0, log10(nddot_module) - nexp)
+        line1_out_list[44] = "-" if nddot < 0 else " "
+        line1_out_list[45:50] = "{:1.5f}".format(ndot_fraction)[2:]
+        line1_out_list[50:52] = str(nexp) if nexp < 0 else "+" + str(nexp)
+    if satrec.bstar == 0.0:
+        line1_out_list[54:61] = "00000+0"
+    else:
+        bstar_module = abs(satrec.bstar)
+        ibexp = int(log10(bstar_module))
+        if ibexp - log10(bstar_module) == 0:
+            ibexp = ibexp + 1
+        bstar_frac = pow(10.0, log10(bstar_module) - ibexp)
+        line1_out_list[53] = "-" if satrec.bstar < 0.0 else " "
+        line1_out_list[54:59] = "{:1.5f}".format(bstar_frac)[2:]
+        line1_out_list[59:61] = "-"+str(ibexp) if ibexp == 0 else str(ibexp)
+    line1_out_list[62] = "0"  # Its always 0 (originally this should have been "Ephemeris type")
+    line1_out_list[64:68] = "{:>4d}".format(satrec.elnum)
+    line1_out_list[68] = str(compute_checksum("".join(line1_out_list)))
+    line1 = "".join(line1_out_list)
+
+    line2_out_list = list(" " * 69)
+    line2_out_list[0] = str(2)
+    line2_out_list[2:7] = "{:05d}".format(satrec.satnum)
+    if int(log10(satrec.inclo / deg2rad)) == 2:
+        line2_out_list[8:16] = "{:>8.4f}".format(satrec.inclo / deg2rad)
+    elif int(log10(satrec.inclo / deg2rad)) == 1:
+        line2_out_list[9:16] = "{:>7.4f}".format(satrec.inclo / deg2rad)
+    else:
+        line2_out_list[10:16] = "{:>6.4f}".format(satrec.inclo / deg2rad)
+    line2_out_list[17:25] = "{:>8.4f}".format(satrec.nodeo / deg2rad)
+    line2_out_list[26:33] = "{:>8.7f}".format(satrec.ecco)[2:]
+    line2_out_list[34:42] = "{:>8.4f}".format(satrec.argpo / deg2rad)
+    line2_out_list[43:51] = "{:>8.4f}".format(satrec.mo / deg2rad)
+    #func = lambda no: unkozai(no, satrec.ecco, satrec.inclo, whichconst) - satrec.no
+    #sol = scipy.optimize.root_scalar(func, x0=satrec.no, x1=satrec.no - 1e-4, xtol=1e-13)
+    #line2_out_list[52:63] = "{:3.8f}".format(sol.root * xpdotp)
+    line2_out_list[52:63] = "{:>11.8f}".format(satrec.no_kozai * xpdotp)
+    line2_out_list[63:68] = "{:>5d}".format(satrec.revnum)
+    line2_out_list[68] = str(compute_checksum("".join(line2_out_list)))
+    line2 = "".join(line2_out_list)
+
+    return line1, line2

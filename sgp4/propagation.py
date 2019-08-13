@@ -2032,3 +2032,12 @@ def getgravconst(whichconst):
            j3oj2  =  j3 / j2;
 
        return tumin, mu, radiusearthkm, xke, j2, j3, j4, j3oj2
+
+
+def unkozai(no_kozai, ecco, inclo, whichconst):
+    _, _, _, xke, j2, _, _, _ = whichconst
+    ak    = pow(xke / no_kozai, 2.0 / 3.0)
+    d1    = 0.75 * j2 * (3.0 * cos(inclo)**2 - 1.0) / (1.0 - ecco**2)**(3/2)
+    del_  = d1 / ak ** 2
+    adel  = ak * (1.0 - del_ * del_ - del_ * (1.0 / 3.0 + 134.0 * del_ * del_ / 81.0))
+    return no_kozai / (1.0 + d1/adel**2)
