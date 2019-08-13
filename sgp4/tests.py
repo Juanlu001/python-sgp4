@@ -108,6 +108,70 @@ class Tests(TestCase):
              ' indicating the satellite has decayed'),
             ])
 
+    def test_tle_verify_vectorial(self):
+        # Check whether a test run produces the output in tcppver.out, when run i a vectorial way
+        # It only runs this tests with a subset of TLE that do not contain errors. This is because
+        # when sgp4 is called vectorially, when one step fails, the whole call fails.
+
+        # cases : 22312, 28350, 28350, 29141 satellites where remove from this test
+
+        error_list = []
+        actual = generate_test_output_vectorial(error_list)
+        previous_data_line = None
+
+        # Iterate across "tcppver.out", making sure that we ourselves
+        # produce a line that looks very much like the corresponding
+        # line in that file.
+
+        tcppath = os.path.join(thisdir, 'tcppver_vectorial.out')
+        with open(tcppath) as tcpfile:
+            for i, expected_line in enumerate(tcpfile, start = 1):
+
+                try:
+                    actual_line = next(actual)
+                except StopIteration:
+                    raise ValueError(
+                        'WARNING: our output ended early, on line %d' % (i,))
+
+                if actual_line == '(Use previous data line)':
+                    actual_line = ('       0.00000000' +
+                                   previous_data_line[17:107])
+
+                # Compare the lines.  The first seven fields are printed
+                # to very high precision, so we allow a small error due
+                # to rounding differences; the rest are printed to lower
+                # precision, and so can be compared textually.
+
+                if 'xx' in actual_line:
+                    similar = (actual_line == expected_line)
+                else:
+                    afields = actual_line.split()
+                    efields = expected_line.split()
+                    actual7 = [ float(a) for a in afields[:7] ]
+                    expected7 = [ float(e) for e in efields[:7] ]
+                    similar = (
+                        len(actual7) == len(expected7)
+                        and
+                        all(
+                            -error < (a - e) < error
+                             for a, e in zip(actual7, expected7)
+                             )
+                        and
+                        afields[7:] == efields[7:]  # just compare text
+                        )
+
+                if not similar:
+                    raise ValueError(
+                        'Line %d of output does not match:\n'
+                        '\n'
+                        'Expect: %s'
+                        'Actual: %s'
+                        % (i, expected_line, actual_line))
+
+                if 'xx' not in actual_line:
+                    previous_data_line = actual_line
+
+
     def test_hyperbolic_orbit(self):
         # Exercise the newtonnu() code path with asinh() to see whether
         # we can replace it with the one from Python's math module.
@@ -218,6 +282,35 @@ def generate_test_output(whichconst, error_list):
             yield line
 
 
+def generate_test_output_vectorial(error_list):
+    """Generate lines like those in the test file tcppver.out.
+
+    This iterates through the satellites in "SGP4-VER.TLE", which are
+    each supplemented with a time start/stop/step over which we are
+    supposed to print results.
+
+    It does so in a vectorial way, running all times toguether.
+
+    """
+    whichconst = wgs72
+    tlepath = os.path.join(thisdir, 'SGP4-VER_vectorial.TLE')
+    with open(tlepath) as tlefile:
+        tlelines = iter(tlefile.readlines())
+
+    for line1 in tlelines:
+
+        if not line1.startswith('1'):
+            continue
+
+        line2 = next(tlelines)
+        satrec = io.twoline2rv(line1, line2, whichconst)
+
+        yield '%ld xx\n' % (satrec.satnum,)
+
+        for line in generate_satellite_output_vectorial(satrec, line2, error_list):
+            yield line
+
+
 def generate_satellite_output(satrec, line2, error_list):
     """Print a data line for each time in line2's start/stop/step field."""
 
@@ -228,7 +321,7 @@ def generate_satellite_output(satrec, line2, error_list):
         error_list.append((satrec.error, satrec.error_message))
         yield '(Use previous data line)'
         return
-    yield format_short_line(satrec, r, v)
+    yield format_short_line(satrec.t , r, v)
 
     tstart, tend, tstep = (float(field) for field in line2[69:].split())
 
@@ -243,7 +336,7 @@ def generate_satellite_output(satrec, line2, error_list):
         if isnan(r[0]) and isnan(r[1]) and isnan(r[2]):
             error_list.append((satrec.error, satrec.error_message))
             return
-        yield format_long_line(satrec, mu, r, v)
+        yield format_long_line(satrec, satrec.t, mu, r, v)
 
         tsince += tstep
 
@@ -252,22 +345,58 @@ def generate_satellite_output(satrec, line2, error_list):
         if isnan(r[0]) and isnan(r[1]) and isnan(r[2]):
             error_list.append((satrec.error, satrec.error_message))
             return
-        yield format_long_line(satrec, mu, r, v)
+        yield format_long_line(satrec, satrec.t, mu, r, v)
 
 
-def format_short_line(satrec, r, v):
+def generate_satellite_output_vectorial(satrec, line2, error_list):
+    """Print a data line for each time in line2's start/stop/step field."""
+
+    if satrec.method == 'd':
+        yield from generate_satellite_output(satrec, line2, error_list)
+        return
+    
+    import numpy as np
+    
+    mu = satrec.whichconst.mu
+
+    tstart, tend, tstep = (float(field) for field in line2[69:].split())
+    times = np.arange(tstart, tend, tstep)
+    
+    if times[-1] - tend < tstep - 1e-6:  # do not miss last line!
+        times = np.append(times, tend)
+
+    _r, _v = np.array(sgp4(satrec, times))
+    
+    if _r.shape == (3,):
+         if isnan(_r[0]) and isnan(_r[1]) and isnan(_r[2]):
+            error_list.append((satrec.error, satrec.error_message))
+            print(error_list)
+            return
+
+    for i in range(_r.shape[1]):
+        r = list(_r[:,i])
+        v = list(_v[:,i])
+        t = satrec.t[i]
+
+        if i == 0:
+            yield format_short_line(t, r, v)
+        else:
+            yield format_long_line(satrec, t, mu, r, v)                
+
+
+def format_short_line(time, r, v):
     """Short line, using the same format string that testcpp.cpp uses."""
 
     return ' %16.8f %16.8f %16.8f %16.8f %12.9f %12.9f %12.9f\n' % (
-        satrec.t, r[0], r[1], r[2], v[0], v[1], v[2])
+        time, r[0], r[1], r[2], v[0], v[1], v[2])
 
 
-def format_long_line(satrec, mu, r, v):
+def format_long_line(satrec, time, mu, r, v):
     """Long line, using the same format string that testcpp.cpp uses."""
 
-    short = format_short_line(satrec, r, v).strip('\n')
+    short = format_short_line(time, r, v).strip('\n')
 
-    jd = satrec.jdsatepoch + satrec.t / 1440.0
+    jd = satrec.jdsatepoch + time / 1440.0
     year, mon, day, hr, minute, sec = invjday(jd)
 
     (p, a, ecc, incl, node, argp, nu, m, arglat, truelon, lonper

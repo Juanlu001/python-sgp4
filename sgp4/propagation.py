@@ -30,8 +30,16 @@ except ImportError:
                     return jit(jit_this, **jit_options)
                return partial_fake_jit
 
-from math import atan2, cos, fabs, pi, sin, sqrt
-
+try:
+    #raise Exception("")
+    from numpy import cos, fabs, fmod, pi, sin, sqrt, maximum
+    from numpy import arctan2 as atan2, any as any_true
+except ImportError:
+    from math import cos, fabs, fmod, pi, sin, sqrt, atan2
+    maximum = max
+    def any_true(value):
+        return value
+    
 deg2rad = pi / 180.0;
 _nan = float('NaN')
 false = (_nan, _nan, _nan)
@@ -279,7 +287,7 @@ def _dpper(satrec, inclo, init, ep, inclp, nodep, argpp, mp, afspc_mode):
            dbet   = -ph * sinop + pinc * cosip * cosop;
            alfdp  = alfdp + dalf;
            betdp  = betdp + dbet;
-           nodep  = nodep % twopi if nodep >= 0.0 else -(-nodep % twopi)
+           nodep  = fmod(nodep, twopi);
            #   sgp4fix for afspc written intrinsic functions
            #  nodep used without a trigonometric function ahead
            if nodep < 0.0 and afspc_mode:
@@ -1753,23 +1761,22 @@ def sgp4(satrec, tsince, whichconst=None):
 
      #  fix tolerance for error recognition
      #  sgp4fix am is fixed from the previous nm check
-     if em >= 1.0 or em < -0.001:  # || (am < 0.95)
+     if any_true(em >= 1.0) or any_true(em < -0.001):  # || (am < 0.95)
 
-         satrec.error_message = ('mean eccentricity {0:f} not within'
+         satrec.error_message = ('mean eccentricity {:.6f} not within'
                                  ' range 0.0 <= e < 1.0'.format(em))
          satrec.error = 1;
          #  sgp4fix to return if there is an error in eccentricity
          return false, false;
 
      #  sgp4fix fix tolerance to avoid a divide by zero
-     if em < 1.0e-6:
-         em  = 1.0e-6;
+     em     = maximum(em,1.0e-6);
      mm     = mm + satrec.no * templ;
      xlm    = mm + argpm + nodem;
      emsq   = em * em;
      temp   = 1.0 - emsq;
 
-     nodem  = nodem % twopi if nodem >= 0.0 else -(-nodem % twopi)
+     nodem  = fmod(nodem, twopi);
      argpm  = argpm % twopi
      xlm    = xlm % twopi
      mm     = (xlm - argpm - nodem) % twopi
@@ -1830,13 +1837,13 @@ def sgp4(satrec, tsince, whichconst=None):
      ktr = 1;
      #    sgp4fix for kepler iteration
      #    the following iteration needs better limits on corrections
-     while fabs(tem5) >= 1.0e-12 and ktr <= 10:
+     while any_true(fabs(tem5) >= 1.0e-12) and ktr <= 10:
 
          sineo1 = sin(eo1);
          coseo1 = cos(eo1);
          tem5   = 1.0 - coseo1 * axnl - sineo1 * aynl;
          tem5   = (u - aynl * coseo1 + axnl * sineo1 - eo1) / tem5;
-         if fabs(tem5) >= 0.95:
+         if any_true(fabs(tem5) >= 0.95):
              tem5 = 0.95 if tem5 > 0.0 else -0.95;
          eo1    = eo1 + tem5;
          ktr = ktr + 1;
@@ -1846,7 +1853,7 @@ def sgp4(satrec, tsince, whichconst=None):
      esine = axnl*sineo1 - aynl*coseo1;
      el2   = axnl*axnl + aynl*aynl;
      pl    = am*(1.0-el2);
-     if pl < 0.0:
+     if any_true(pl < 0.0):
 
          satrec.error_message = ('semilatus rectum {0:f} is less than zero'
                                  .format(pl))
@@ -1911,7 +1918,7 @@ def sgp4(satrec, tsince, whichconst=None):
               (mvt * uz + rvdot * vz) * vkmpersec)
 
      #  sgp4fix for decaying satellites
-     if mrt < 1.0:
+     if any_true(mrt < 1.0):
 
          satrec.error_message = ('mrt {0:f} is less than 1.0 indicating'
                                  ' the satellite has decayed'.format(mrt))
@@ -1948,7 +1955,7 @@ def sgp4(satrec, tsince, whichconst=None):
 * --------------------------------------------------------------------------- */
 """
 
-def gstime(jdut1):
+def _gstime(jdut1):
 
      tut1 = (jdut1 - 2451545.0) / 36525.0;
      temp = -6.2e-6* tut1 * tut1 * tut1 + 0.093104 * tut1 * tut1 + \
@@ -1956,14 +1963,11 @@ def gstime(jdut1):
      temp = (temp * deg2rad / 240.0) % twopi # 360/86400 = 1/240, to deg, to rad
 
      #  ------------------------ check quadrants ---------------------
-     if temp < 0.0:
-         temp += twopi;
+     temp += (temp < 0.0) * twopi
+     #if temp < 0.0:
+     #    temp += twopi;
 
      return temp;
-
-# The routine was originally marked private, so make it available under
-# the old name for compatibility:
-_gstime = gstime
 
 """
 /* -----------------------------------------------------------------------------
