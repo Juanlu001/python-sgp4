@@ -1763,7 +1763,7 @@ def sgp4(satrec, tsince, whichconst=None):
      #  sgp4fix am is fixed from the previous nm check
      if any_true(em >= 1.0) or any_true(em < -0.001):  # || (am < 0.95)
 
-         satrec.error_message = ('mean eccentricity {} not within'
+         satrec.error_message = ('mean eccentricity {:.6f} not within'
                                  ' range 0.0 <= e < 1.0'.format(em))
          satrec.error = 1;
          #  sgp4fix to return if there is an error in eccentricity
