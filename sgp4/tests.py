@@ -224,6 +224,30 @@ with an N where each digit should go, followed by the line you provided:
         with self.assertRaisesRegexp(ValueError, re.escape(msg)):
             io.twoline2rv(good1, bad2, wgs72)
 
+    def test_rv2twoline(self):
+        ignores_tles = [33333, 33334, 33335, 11801, 25954]
+        # 3333x are ignore because they fail on porpouse
+        # 11801 is ignore because it does not contain the typical 0 in line1[62] ("Ephemeris type")
+        # 25954 is ignore because it uses -0 for bstar expotential intead off +0
+        whichconst = wgs72
+        tlepath = os.path.join(thisdir, 'SGP4-VER.TLE')
+        with open(tlepath) as tlefile:
+            tlelines = iter(tlefile.readlines())
+
+        for expected_line1 in tlelines:
+
+            if not expected_line1.startswith('1'):
+                continue
+
+            expected_line2 = next(tlelines)
+            satrec = io.twoline2rv(expected_line1, expected_line2, whichconst)
+
+            if satrec.satnum not in ignores_tles:
+                with self.subTest(i=satrec.satnum):
+                    line1, line2 = io.rv2twoline(satrec)
+                    self.assertEqual(line1.strip(), expected_line1[:69])
+                    self.assertEqual(line2.strip(), expected_line2[:69])
+
 
 good1 = '1 00005U 58002B   00179.78495062  .00000023  00000-0  28098-4 0  4753'
 good2 = '2 00005  34.2682 348.7242 1859667 331.7664  19.3264 10.82419157413667'
