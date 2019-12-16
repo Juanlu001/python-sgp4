@@ -92,7 +92,10 @@ class Satellite(object):
         self.ndot = ndot
         self.nddot = nddot
         self.classification = classification
-        self.intldesg = intldesg
+        if intldesg:
+            self.intldesg = intldesg
+        else:
+            self.intldesg = str(self.epochyr)[:-2]+'001A'
         self.elnum = elnum
         self.revnum = revnum
         self.error = 0
