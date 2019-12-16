@@ -86,7 +86,7 @@ attributes carry the data loaded from the TLE entry:
   >>> satellite.epochyr
   2000
   >>> satellite.epochdays
-  179.78495062
+  179.78495061998842
   >>> satellite.jdsatepoch
   2451723.28495062
   >>> satellite.epoch

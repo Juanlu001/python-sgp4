@@ -119,12 +119,6 @@ def twoline2rv(longstr1, longstr2, whichconst, afspc_mode=False):
     deg2rad  =   pi / 180.0;         #    0.0174532925199433
     xpdotp   =  1440.0 / (2.0 *pi);  #  229.1831180523293
 
-    tumin = whichconst.tumin
-
-    satrec = Satellite()
-    satrec.error = 0;
-    satrec.whichconst = whichconst  # Python extension: remembers its consts
-
     line = longstr1.rstrip()
     # try/except is not well supported by Numba
     if (len(line) >= 64 and
@@ -138,19 +132,18 @@ def twoline2rv(longstr1, longstr2, whichconst, afspc_mode=False):
         line[61] == ' ' and
         line[63] == ' '):
 
-        _saved_satnum = satrec.satnum = int(line[2:7])
-        satrec.classification = line[7] or 'U'
-        satrec.intldesg = line[9:17]
+        _saved_satnum = int(line[2:7])
+        classification = line[7] or 'U'
+        intldesg = line[9:17]
         two_digit_year = int(line[18:20])
-        satrec.epochdays = float(line[20:32])
-        satrec.ndot = float(line[33:43])
-        satrec.nddot = float(line[44] + '.' + line[45:50])
+        epochdays = float(line[20:32])
+        ndot = float(line[33:43])
+        nddot = float(line[44] + '.' + line[45:50])
         nexp = int(line[50:52])
-        satrec.bstar = float(line[53] + '.' + line[54:59])
+        bstar = float(line[53] + '.' + line[54:59])
         ibexp = int(line[59:61])
         # numb = int(line[62])
-        satrec.elnum = int(line[64:68])
-        satrec.checksum1 = line[68]
+        elnum = int(line[64:68])
     else:
         raise ValueError(error_message.format(1, LINE1, line))
 
@@ -168,40 +161,35 @@ def twoline2rv(longstr1, longstr2, whichconst, afspc_mode=False):
         line[46] == '.' and
         line[51] == ' '):
 
-        satrec.satnum = int(line[2:7])
-        if _saved_satnum != satrec.satnum:
+        satnum = int(line[2:7])
+        if _saved_satnum != satnum:
             raise ValueError('Object numbers in lines 1 and 2 do not match')
 
-        satrec.inclo = float(line[8:16])
-        satrec.nodeo = float(line[17:25])
-        satrec.ecco = float('0.' + line[26:33].replace(' ', '0'))
-        satrec.argpo = float(line[34:42])
-        satrec.mo = float(line[43:51])
-        satrec.no_kozai = float(line[52:63])
-        satrec.revnum = int(line[63:68])
-        satrec.checksum2 = line[68]
+        inclo = float(line[8:16])
+        nodeo = float(line[17:25])
+        ecco = float('0.' + line[26:33].replace(' ', '0'))
+        argpo = float(line[34:42])
+        mo = float(line[43:51])
+        no_kozai = float(line[52:63])
+        revnum = int(line[63:68])
     #except (AssertionError, IndexError, ValueError):
     else:
         raise ValueError(error_message.format(2, LINE2, line))
 
     #  ---- find no, ndot, nddot ----
-    satrec.no_kozai = satrec.no_kozai / xpdotp; #   rad/min
-    satrec.nddot= satrec.nddot * pow(10.0, nexp);
-    satrec.bstar= satrec.bstar * pow(10.0, ibexp);
+    no_kozai = no_kozai / xpdotp; #   rad/min
+    nddot= nddot * pow(10.0, nexp);
+    bstar= bstar * pow(10.0, ibexp);
 
     #  ---- convert to sgp4 units ----
-    satrec.a    = pow( satrec.no_kozai*tumin , (-2.0/3.0) );
-    satrec.ndot = satrec.ndot  / (xpdotp*1440.0);  #   ? * minperday
-    satrec.nddot= satrec.nddot / (xpdotp*1440.0*1440);
+    ndot = ndot  / (xpdotp*1440.0);  #   ? * minperday
+    nddot= nddot / (xpdotp*1440.0*1440);
 
     #  ---- find standard orbital elements ----
-    satrec.inclo = satrec.inclo  * deg2rad;
-    satrec.nodeo = satrec.nodeo  * deg2rad;
-    satrec.argpo = satrec.argpo  * deg2rad;
-    satrec.mo    = satrec.mo     * deg2rad;
-
-    satrec.alta = satrec.a*(1.0 + satrec.ecco) - 1.0;
-    satrec.altp = satrec.a*(1.0 - satrec.ecco) - 1.0;
+    inclo = inclo  * deg2rad;
+    nodeo = nodeo  * deg2rad;
+    argpo = argpo  * deg2rad;
+    mo    = mo     * deg2rad;
 
     """
     // ----------------------------------------------------------------
@@ -218,19 +206,15 @@ def twoline2rv(longstr1, longstr2, whichconst, afspc_mode=False):
     else:
         year = two_digit_year + 1900;
 
-    mon,day,hr,minute,sec = days2mdhms(year, satrec.epochdays);
+    mon,day,hr,minute,sec = days2mdhms(year, epochdays);
     sec_whole, sec_fraction = divmod(sec, 1.0)
-
-    satrec.epochyr = year
-    satrec.jdsatepoch = jday(year,mon,day,hr,minute,sec);
-    satrec.epoch = datetime(year, mon, day, hr, minute, int(sec_whole),
+    epoch = datetime(year, mon, day, hr, minute, int(sec_whole),
                             int(sec_fraction * 1000000.0 // 1.0))
 
-    #  ---------------- initialize the orbit at sgp4epoch -------------------
-    sgp4init(whichconst, afspc_mode, satrec.satnum, satrec.jdsatepoch-2433281.5, satrec.bstar,
-             satrec.ecco, satrec.argpo, satrec.inclo, satrec.mo, satrec.no_kozai,
-             satrec.nodeo, satrec)
-
+    satrec = Satellite(whichconst=whichconst, satnum=satnum, epoch=epoch, bstar=bstar,
+                       inclo=inclo, nodeo=nodeo, ecco=ecco, argpo=argpo, mo=mo, no_kozai=no_kozai,
+                       ndot=ndot, nddot=nddot, classification=classification, intldesg=intldesg,
+                       elnum=elnum, revnum=revnum, afspc_mode=afspc_mode)
     return satrec
 
 
