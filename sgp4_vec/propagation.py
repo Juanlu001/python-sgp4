@@ -15,21 +15,8 @@ code for the first time here in its Python form.
 | - Brandon Rhodes
 |   Common Grounds Coffee House, Bluffton, Ohio
 |   On a very hot August day in 2012
+
 """
-
-try:
-     from numba import jit
-except ImportError:
-     def jit(jit_this=None, **jit_options):
-          if jit_this is not None:
-               def fake_jit(*args, **kwargs):
-                    return jit_this(*args, **kwargs)
-               return fake_jit
-          else:
-               def partial_fake_jit(jit_this, **jit_options):
-                    return jit(jit_this, **jit_options)
-               return partial_fake_jit
-
 try:
     #raise Exception("")
     from numpy import cos, fabs, fmod, pi, sin, sqrt, maximum
@@ -39,7 +26,7 @@ except ImportError:
     maximum = max
     def any_true(value):
         return value
-    
+
 deg2rad = pi / 180.0;
 _nan = float('NaN')
 false = (_nan, _nan, _nan)
@@ -949,8 +936,6 @@ def _dsinit(
   ----------------------------------------------------------------------------*/
 """
 
-@jit(cache=True)
-#@jit
 def _dspace(
        irez,
        d2201,  d2211,  d3210,   d3222,  d4410,
@@ -1665,8 +1650,6 @@ def sgp4init(
   ----------------------------------------------------------------------------*/
 """
 
-@jit(cache=True)
-#@jit
 def sgp4(satrec, tsince, whichconst=None):
 
      mrt = 0.0
