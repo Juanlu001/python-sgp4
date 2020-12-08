@@ -1,7 +1,7 @@
 """Three earth-gravity models for use with SGP4."""
 
 from collections import namedtuple
-from sgp4.propagation import getgravconst
+from sgp4_vec.propagation import getgravconst
 
 EarthGravity = namedtuple(
     'EarthGravity',

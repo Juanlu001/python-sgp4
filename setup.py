@@ -1,13 +1,13 @@
 from distutils.core import setup
 from textwrap import dedent
 
-import sgp4, sgp4.model
+import sgp4_vec, sgp4_vec.model
 
-description, long_description = sgp4.__doc__.split('\n', 1)
-satdoc = dedent(sgp4.model.Satellite.__doc__.split('\n', 1)[1])
+description, long_description = sgp4_vec.__doc__.split('\n', 1)
+satdoc = dedent(sgp4_vec.model.Satellite.__doc__.split('\n', 1)[1])
 long_description = long_description.replace('entry.', 'entry.' + satdoc)
 
-setup(name = 'sgp4',
+setup(name = 'sgp4-vec',
       version = '1.4',
       description = description,
       long_description = long_description,
@@ -28,5 +28,5 @@ setup(name = 'sgp4',
         'Programming Language :: Python :: 3.4',
         'Topic :: Scientific/Engineering :: Astronomy',
         ],
-      packages = ['sgp4'],
+      packages = ['sgp4_vec'],
       )

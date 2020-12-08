@@ -1,7 +1,7 @@
 """The Satellite class."""
 
-from sgp4.ext import jday
-from sgp4.propagation import sgp4, sgp4init
+from sgp4_vec.ext import jday
+from sgp4_vec.propagation import sgp4, sgp4init
 import datetime
 
 minutes_per_day = 1440.
@@ -12,7 +12,7 @@ class Satellite(object):
 
     Most of this class's hundred-plus attributes are intermediate values
     of interest only to the propagation algorithm itself.  Here are the
-    attributes set by ``sgp4.io.twoline2rv()`` in which users are likely
+    attributes set by ``sgp4_vec.io.twoline2rv()`` in which users are likely
     to be interested:
 
     ``satnum``
@@ -47,9 +47,9 @@ class Satellite(object):
                  ndot=0, nddot=0, classification='U', intldesg=None, elnum=1, revnum=1, afspc_mode=False):
         """
         :param whichconst: standard set of gravitational constants.
-            `sgp4.earth_gravity.wgs72` - Standard WGS 72 model
-            `sgp4.earth_gravity.wgs84` - More recent WGS 84 model
-            `sgp4.earth_gravity.wgs72old` - Legacy support for old SGP4 behavior
+            `sgp4_vec.earth_gravity.wgs72` - Standard WGS 72 model
+            `sgp4_vec.earth_gravity.wgs84` - More recent WGS 84 model
+            `sgp4_vec.earth_gravity.wgs72old` - Legacy support for old SGP4 behavior
         :param satnum: Unique satellite number given in the TLE file.
         :param epoch: naive datetime objects with TLE epoch
         :param bstar: Ballistic drag coefficient B* in inverse earth radii.

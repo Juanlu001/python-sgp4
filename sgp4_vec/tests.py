@@ -11,9 +11,9 @@ import sys
 from doctest import DocTestSuite, ELLIPSIS
 from math import pi, isnan
 
-from sgp4.earth_gravity import wgs72
-from sgp4.ext import invjday, newtonnu, rv2coe
-from sgp4.propagation import sgp4
+from sgp4_vec.earth_gravity import wgs72
+from sgp4_vec.ext import invjday, newtonnu, rv2coe
+from sgp4_vec.propagation import sgp4
 from sgp4 import io
 
 thisdir = os.path.dirname(__file__)

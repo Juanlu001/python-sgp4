@@ -6,8 +6,8 @@ This is a minimally-edited copy of "sgp4io.cpp".
 import re
 from datetime import datetime
 from math import pi, pow, log10
-from sgp4.ext import days2mdhms
-from sgp4.model import Satellite
+from sgp4_vec.ext import days2mdhms
+from sgp4_vec.model import Satellite
 
 INT_RE = re.compile(r'[+-]?\d*')
 FLOAT_RE = re.compile(r'[+-]?\d*(\.\d*)?')
@@ -105,9 +105,9 @@ def twoline2rv(longstr1, longstr2, whichconst, afspc_mode=False):
     and select which standard set of gravitational constants you want
     by providing `gravity_constants`:
 
-    `sgp4.earth_gravity.wgs72` - Standard WGS 72 model
-    `sgp4.earth_gravity.wgs84` - More recent WGS 84 model
-    `sgp4.earth_gravity.wgs72old` - Legacy support for old SGP4 behavior
+    `sgp4_vec.earth_gravity.wgs72` - Standard WGS 72 model
+    `sgp4_vec.earth_gravity.wgs84` - More recent WGS 84 model
+    `sgp4_vec.earth_gravity.wgs72old` - Legacy support for old SGP4 behavior
 
     Normally, computations are made using various recent improvements
     to the algorithm.  If you want to turn some of these off and go

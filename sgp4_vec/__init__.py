@@ -35,8 +35,8 @@ familiar with this library in other languages.  Here is how to compute
 the x,y,z position and velocity for Vanguard 1 at 12:50:19 on 29
 June 2000:
 
->>> from sgp4.earth_gravity import wgs72
->>> from sgp4.io import twoline2rv
+>>> from sgp4_vec.earth_gravity import wgs72
+>>> from sgp4_vec.io import twoline2rv
 >>>
 >>> line1 = ('1 00005U 58002B   00179.78495062  '
 ...          '.00000023  00000-0  28098-4 0  4753')
